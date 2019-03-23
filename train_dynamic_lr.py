@@ -30,6 +30,9 @@ parser.add_argument('--dataset', '-d', default='cifar10',
                     choices=dataset_options)
 parser.add_argument('--model', '-a', default='resnet18',
                     choices=model_options)
+
+parser.add_argument('--filename', '-f', default='new_run')
+
 parser.add_argument('--batch_size', type=int, default=128,
                     help='input batch size for training (default: 128)')
 parser.add_argument('--epochs', type=int, default=200,
@@ -67,7 +70,7 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-test_id = args.dataset + '_' + args.model
+test_id = str(args.filename) + '_' + args.dataset + '_' + args.model
 
 print(args)
 
