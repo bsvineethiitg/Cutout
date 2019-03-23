@@ -168,7 +168,7 @@ else:
     scheduler = MultiStepLR(cnn_optimizer, milestones=[60, 120, 160], gamma=0.2)
 
 filename = 'logs/' + test_id + '.csv'
-csv_logger = CSVLogger(args=args, fieldnames=['epoch', 'train_acc', 'test_acc'], filename=filename)
+csv_logger = CSVLogger(args=args, fieldnames=['epoch', 'train_acc', 'test_acc', 'train_loss', 'test_loss'], filename=filename)
 
 
 def test(loader):
