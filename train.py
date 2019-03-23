@@ -245,16 +245,17 @@ for epoch in range(num_epochs):
     row = {'epoch': str(epoch), 'train_acc': str(accuracy), 'test_acc': str(test_acc), 'train_loss': str(xentropy_loss_avg / (i + 1)), 'test_loss': str(xentropy_test)}
     csv_logger.writerow(row)
     
-    # determine early stopping
-    if early_stopping:
-        # change this for using loss VS acc        
-        if xentropy_test < min(all_test_losses):
-            early_stopping_counter = 0
-        else:
-            early_stopping_counter += 1
+    if epoch > 0:
+        # determine early stopping
+        if early_stopping:
+            # change this for using loss VS acc        
+            if xentropy_test < min(all_test_losses):
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
             
-        if early_stopping_counter > args.early_stopping:
-            done = True
+            if early_stopping_counter > args.early_stopping:
+                done = True
        
     all_test_losses.append(xentropy_test)
     all_test_accs.append(test_acc)
