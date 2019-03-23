@@ -44,6 +44,8 @@ parser.add_argument('--n_holes', type=int, default=1,
                     help='number of holes to cut out from image')
 parser.add_argument('--length', type=int, default=16,
                     help='length of the holes')
+parser.add_argument('--early-stopping', type=int, default=0,
+                    help='if non zero, model training stops after val loss saturates or doesnt get better')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('--seed', type=int, default=0,
@@ -52,6 +54,10 @@ parser.add_argument('--seed', type=int, default=0,
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 cudnn.benchmark = True  # Should make training should go faster for large models
+
+early_stopping = False
+if args.early_stopping != 0:
+    early_stopping = True
 
 torch.manual_seed(args.seed)
 if args.cuda:
@@ -169,6 +175,7 @@ def test(loader):
     cnn.eval()    # Change model to 'eval' mode (BN uses moving mean/var).
     correct = 0.
     total = 0.
+    xentropy = []
     for images, labels in loader:
         images = images.cuda()
         labels = labels.cuda()
@@ -176,16 +183,28 @@ def test(loader):
         with torch.no_grad():
             pred = cnn(images)
 
+        xentropy_val_loss = criterion(pred, labels)
+        xentropy.append(float(xentropy_val_loss.item()))
+        
         pred = torch.max(pred.data, 1)[1]
         total += labels.size(0)
         correct += (pred == labels).sum().item()
 
     val_acc = correct / total
+    xentropy = sum(xentropy)/float(len(xentropy))
     cnn.train()
-    return val_acc
+    return val_acc, xentropy
 
+num_epochs = args.epochs
 
-for epoch in range(args.epochs):
+if early_stopping:
+    num_epochs = 100000 #infinity
+
+all_test_losses = []
+all_test_accs = []
+early_stopping_counter = 0
+done = False
+for epoch in range(num_epochs):
 
     xentropy_loss_avg = 0.
     correct = 0.
@@ -217,13 +236,31 @@ for epoch in range(args.epochs):
             xentropy='%.3f' % (xentropy_loss_avg / (i + 1)),
             acc='%.3f' % accuracy)
 
-    test_acc = test(test_loader)
+    test_acc, xentropy_test = test(test_loader)
     tqdm.write('test_acc: %.3f' % (test_acc))
+    tqdm.write('test_loss: %.3f' % (xentropy_test))
 
     scheduler.step(epoch)
 
-    row = {'epoch': str(epoch), 'train_acc': str(accuracy), 'test_acc': str(test_acc)}
+    row = {'epoch': str(epoch), 'train_acc': str(accuracy), 'test_acc': str(test_acc), 'train_loss': str(xentropy_loss_avg / (i + 1)), 'test_loss': str(xentropy_test)}
     csv_logger.writerow(row)
+    
+    # determine early stopping
+    if early_stopping:
+        # change this for using loss VS acc        
+        if xentropy_test < min(all_test_losses):
+            early_stopping_counter = 0
+        else:
+            early_stopping_counter += 1
+            
+        if early_stopping_counter > args.early_stopping:
+            done = True
+       
+    all_test_losses.append(xentropy_test)
+    all_test_accs.append(test_acc)
+    
+    if done:
+        break
 
 torch.save(cnn.state_dict(), 'checkpoints/' + test_id + '.pt')
 csv_logger.close()
