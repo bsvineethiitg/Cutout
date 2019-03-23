@@ -167,7 +167,7 @@ criterion = nn.CrossEntropyLoss().cuda()
 #cnn_optimizer = torch.optim.SGD(cnn.parameters(), lr=args.learning_rate,
 #                                momentum=0.9, nesterov=True, weight_decay=5e-4)
 
-cnn_optimizer = optim.Adam(cnn.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4, amsgrad=False)
+cnn_optimizer = torch.optim.Adam(cnn.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4, amsgrad=False)
 
 if args.dataset == 'svhn':
     #scheduler = MultiStepLR(cnn_optimizer, milestones=[80, 120], gamma=0.1)
