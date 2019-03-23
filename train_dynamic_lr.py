@@ -34,8 +34,12 @@ parser.add_argument('--batch_size', type=int, default=128,
                     help='input batch size for training (default: 128)')
 parser.add_argument('--epochs', type=int, default=200,
                     help='number of epochs to train (default: 20)')
-parser.add_argument('--learning_rate', type=float, default=0.1,
+
+# change the default for diff optimizers -> for adam use 0.01 and for sgd use 0.1 
+parser.add_argument('--learning_rate', type=float, default=0.01,
                     help='learning rate')
+
+
 parser.add_argument('--data_augmentation', action='store_true', default=False,
                     help='augment data by flipping and cropping')
 parser.add_argument('--cutout', action='store_true', default=False,
@@ -44,12 +48,12 @@ parser.add_argument('--n_holes', type=int, default=1,
                     help='number of holes to cut out from image')
 parser.add_argument('--length', type=int, default=16,
                     help='length of the holes')
-parser.add_argument('--early-stopping', type=int, default=0,
+parser.add_argument('--early-stopping', type=int, default=15,
                     help='if non zero, model training stops after val loss saturates or doesnt get better')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
-parser.add_argument('--seed', type=int, default=0,
-                    help='random seed (default: 1)')
+parser.add_argument('--seed', type=int, default=28081994,
+                    help='random seed (default: 28081994)')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -159,13 +163,18 @@ elif args.model == 'wideresnet':
 
 cnn = cnn.cuda()
 criterion = nn.CrossEntropyLoss().cuda()
-cnn_optimizer = torch.optim.SGD(cnn.parameters(), lr=args.learning_rate,
-                                momentum=0.9, nesterov=True, weight_decay=5e-4)
+
+#cnn_optimizer = torch.optim.SGD(cnn.parameters(), lr=args.learning_rate,
+#                                momentum=0.9, nesterov=True, weight_decay=5e-4)
+
+cnn_optimizer = optim.Adam(cnn.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4, amsgrad=False)
 
 if args.dataset == 'svhn':
-    scheduler = MultiStepLR(cnn_optimizer, milestones=[80, 120], gamma=0.1)
+    #scheduler = MultiStepLR(cnn_optimizer, milestones=[80, 120], gamma=0.1)
+    gamma=0.1
 else:
-    scheduler = MultiStepLR(cnn_optimizer, milestones=[60, 120, 160], gamma=0.2)
+    #scheduler = MultiStepLR(cnn_optimizer, milestones=[60, 120, 160], gamma=0.2)
+    gamma=0.2
 
 filename = 'logs/' + test_id + '.csv'
 csv_logger = CSVLogger(args=args, fieldnames=['epoch', 'train_acc', 'test_acc', 'train_loss', 'test_loss'], filename=filename)
@@ -204,6 +213,8 @@ all_test_losses = []
 all_test_accs = []
 early_stopping_counter = 0
 done = False
+early_stopping_lr_decay_modes = 3 # these will be the "decay modes" in the final plot
+
 for epoch in range(num_epochs):
 
     xentropy_loss_avg = 0.
@@ -240,7 +251,7 @@ for epoch in range(num_epochs):
     tqdm.write('test_acc: %.3f' % (test_acc))
     tqdm.write('test_loss: %.3f' % (xentropy_test))
 
-    scheduler.step(epoch)
+    cnn_optimizer.step()
 
     row = {'epoch': str(epoch), 'train_acc': str(accuracy), 'test_acc': str(test_acc), 'train_loss': str(xentropy_loss_avg / (i + 1)), 'test_loss': str(xentropy_test)}
     csv_logger.writerow(row)
@@ -255,7 +266,15 @@ for epoch in range(num_epochs):
                 early_stopping_counter += 1
             
             if early_stopping_counter > args.early_stopping:
-                done = True
+                if early_stopping_lr_decay_modes == 1:
+                    done = True
+                else:
+                    # update LR
+                    for g_ in cnn_optimizer.param_groups:
+                        g_['lr'] = g_['lr'] * gamma #0.001
+                    
+                    early_stopping_lr_decay_modes = early_stopping_lr_decay_modes - 1
+                    early_stopping_counter = 0
        
     all_test_losses.append(xentropy_test)
     all_test_accs.append(test_acc)
